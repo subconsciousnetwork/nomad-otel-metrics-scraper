@@ -4,6 +4,7 @@ use humantime::Duration;
 use log::{debug, error, info, trace};
 use opentelemetry::{metrics::MeterProvider as _, KeyValue, StringValue, Value};
 use opentelemetry_sdk::{
+    Resource,
     metrics::{MeterProvider, PeriodicReader},
     runtime,
 };
@@ -13,6 +14,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
 use url::Url;
+use opentelemetry_sdk::metrics::reader::{
+    DefaultAggregationSelector, DefaultTemporalitySelector,
+};
 
 #[derive(Parser)]
 #[command(version, about, name = "nomad-otel-metrics-scraper")]
@@ -22,6 +26,9 @@ pub struct Cli {
 
     #[clap(short, long, default_value = "60s")]
     pub poll_interval: Duration,
+
+    #[clap(long)]
+    pub debug: bool,
 }
 
 #[tokio::main]
@@ -30,7 +37,7 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
     info!("Polling {} every {}", args.nomad_url, args.poll_interval);
 
-    let meter_provider = setup_otel();
+    let meter_provider = setup_otel(args.debug)?;
     let closable_meter_provider = meter_provider.clone();
     let meter = meter_provider.meter("nomad_metrics");
 
@@ -86,14 +93,18 @@ async fn main() -> Result<()> {
         // wait for ctrlc
         match tokio::signal::ctrl_c().await {
             Ok(()) => {
-                info!("Provider, as we know it. {:#?}", closable_meter_provider);
+                // TODO: This should really be blow the metric provider closing,
+                // b/c it just hard-stops the binary. Unfortunately, the
+                // shutdown mechanism below hangs. Pending
+                // https://cloud-native.slack.com/archives/C03GDP0H023/p1706210769680649
+                cancel_token.cancel();
+
+                trace!("Provider, as we know it. {:#?}", closable_meter_provider);
                 info!("Flushing metrics.");
-                // opentelemetry::global::shutdown_meter_provider()
                 closable_meter_provider.force_flush()?;
                 info!("Shutting it down.");
                 closable_meter_provider.shutdown()?;
                 info!("Meter provider is shutdown");
-                cancel_token.cancel();
                 Ok::<(), anyhow::Error>(())
             }
             Err(err) => {
@@ -114,7 +125,8 @@ async fn main() -> Result<()> {
             let data = job_metric_map.lock().unwrap();
             for (job_name, status_count) in data.iter() {
                 let labels = [KeyValue::new(
-                    "job",
+                    // NB: "job" is a reserved word for these.
+                    "nomad_job",
                     Value::String(StringValue::from(job_name.to_owned())),
                 )];
 
@@ -130,20 +142,35 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn setup_otel() -> Arc<MeterProvider> {
-    let exporter = opentelemetry_stdout::MetricsExporterBuilder::default()
-        // uncomment the below lines to pretty print output.
-        .with_encoder(|writer, data| Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
-        .build();
-    // TODO: Setup service name
-    let _reader = PeriodicReader::builder(exporter, runtime::Tokio)
-        .with_interval(std::time::Duration::from_millis(15_000)) // millis
-        .build();
-    Arc::new(
-        MeterProvider::builder()
-            // .with_reader(reader)
-            .build(),
+fn setup_otel(debug: bool) -> Result<Arc<MeterProvider>> {
+
+    let mut builder =         MeterProvider::builder()
+        .with_resource(Resource::new(vec![KeyValue::new("service.name", "nomad-scraper")]));
+
+    if debug {
+        builder = builder.with_reader(PeriodicReader::builder(
+            opentelemetry_stdout::MetricsExporterBuilder::default()
+                .with_encoder(|writer, data| Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
+                .build(),
+            runtime::Tokio)
+                                      .with_interval(std::time::Duration::from_millis(15_000)) // millis
+                                      .build());
+    }
+
+
+    let builder = builder.with_reader(PeriodicReader::builder(
+        opentelemetry_otlp::new_exporter()
+            .http()
+            .build_metrics_exporter(
+                Box::new(DefaultAggregationSelector::new()),
+                Box::new(DefaultTemporalitySelector::new()),
+            )?,
+        runtime::Tokio
     )
+                                      .with_interval(std::time::Duration::from_millis(15_000)) // millis
+                                      .build());
+
+    Ok(Arc::new(builder.build()))
 }
 
 async fn get_statuses_for_jobs(nomad_url: String) -> Result<Vec<(String, JobScaleStatus)>> {
