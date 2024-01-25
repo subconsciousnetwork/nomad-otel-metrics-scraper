@@ -153,7 +153,10 @@ fn setup_otel(debug: bool) -> Result<Arc<MeterProvider>> {
     if debug {
         builder = builder.with_reader(PeriodicReader::builder(
             opentelemetry_stdout::MetricsExporterBuilder::default()
-                .with_encoder(|writer, data| Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
+                .with_encoder(|writer, data| {
+                    serde_json::to_writer_pretty(writer, &data).unwrap();
+                    Ok(())
+                })
                 .build(),
             runtime::Tokio)
                                       .build());

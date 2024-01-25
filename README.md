@@ -14,10 +14,20 @@ but it uses prometheus rather than OTLP.
 
 ## Usage
 
-```
-nomad-otel-metrics-scraper --nomad-url http://my.nomad.instance/ --poll-interval 15s --debug
-```
+```text
+Usage: nomad-otel-metrics-scraper [OPTIONS]
 
-The debug flag sets the stdout exporter for OTel so you can see what metics it's writing.
+Options:
+  -u, --nomad-url <NOMAD_URL>
+          URL of the nomad instance to contact [default: http://localhost:4646]
+  -n, --nomad-poll-interval <NOMAD_POLL_INTERVAL>
+          How often to query nomad [default: 60s]
+      --debug
+          Whether to print out the metrics we are publishing to stdout
+  -h, --help
+          Print help
+  -V, --version
+          Print version
+```
 
 The OTel portions conform to the [Environment Variable Specification](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) and can be adjusted accordingly.
