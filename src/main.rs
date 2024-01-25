@@ -156,7 +156,6 @@ fn setup_otel(debug: bool) -> Result<Arc<MeterProvider>> {
                 .with_encoder(|writer, data| Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
                 .build(),
             runtime::Tokio)
-                                      .with_interval(std::time::Duration::from_millis(15_000)) // millis
                                       .build());
     }
 
@@ -170,7 +169,6 @@ fn setup_otel(debug: bool) -> Result<Arc<MeterProvider>> {
             )?,
         runtime::Tokio
     )
-                                      .with_interval(std::time::Duration::from_millis(15_000)) // millis
                                       .build());
 
     Ok(Arc::new(builder.build()))
