@@ -1,14 +1,12 @@
 use anyhow::Result;
 use clap::Parser;
 use humantime::Duration;
-use log::{debug, error, info, trace};
+use log::{error, info, };
 use opentelemetry::{metrics::MeterProvider as _, KeyValue, StringValue, Value};
 use opentelemetry_sdk::{
     metrics::{MeterProvider, PeriodicReader},
     runtime,
 };
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio_util::sync::CancellationToken;
@@ -42,10 +40,7 @@ async fn main() -> Result<()> {
     let service_up = meter.u64_observable_gauge("nomad_job_up").init();
     let service_down = meter.u64_observable_gauge("nomad_job_down").init();
 
-    let nomad_url = args.nomad_url.to_string();
-
     let job_metric_map = Arc::new(Mutex::new(HashMap::<String, StatusCount>::new()));
-    let looper_job_metric_map = job_metric_map.clone();
 
     let cancel_token = CancellationToken::new();
     let status_checker_token = cancel_token.clone();
@@ -118,7 +113,10 @@ fn setup_otel() -> Arc<MeterProvider> {
         .with_encoder(|writer, data| Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
         .build();
     // TODO: Setup service name
-    let reader = PeriodicReader::builder(exporter, runtime::Tokio)
+    let
+
+
+        reader = PeriodicReader::builder(exporter, runtime::Tokio)
         .with_interval(std::time::Duration::from_millis(15_000)) // millis
         .build();
     Arc::new(
