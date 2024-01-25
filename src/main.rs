@@ -52,31 +52,13 @@ async fn main() -> Result<()> {
 
     let status_loop = tokio::spawn(async move {
         loop {
+
             tokio::select! {
                 _ = status_checker_token.cancelled() => {
                     return
                 }
                 _ = tokio::time::sleep(args.poll_interval.into()) => {
-                // TODO: Set timeouts
-                let statuses = get_statuses_for_jobs(nomad_url.clone())
-                    .await
-                    .expect("Unable to fetch statuses from the provided domain");
-
-                {
-                    // in it's own scope so we don't keep the lock for too long.
-                    let mut data = looper_job_metric_map.lock().unwrap();
-                    for (job_name, status) in statuses.iter() {
-                        let status_count = StatusCount {
-                            up: status.healthy.into(),
-                            down: status.unhealthy.into(),
-                            up_ratio: (status.healthy / status.desired).into(),
-                        };
-
-                        debug!("Job {} had status {:?}", job_name, status_count);
-                        data.insert(job_name.clone(), status_count);
-                    }
-                }
-
+                    info!("Doing some important async work here");
                 }
             };
         }
@@ -136,66 +118,14 @@ fn setup_otel() -> Arc<MeterProvider> {
         .with_encoder(|writer, data| Ok(serde_json::to_writer_pretty(writer, &data).unwrap()))
         .build();
     // TODO: Setup service name
-    let _reader = PeriodicReader::builder(exporter, runtime::Tokio)
+    let reader = PeriodicReader::builder(exporter, runtime::Tokio)
         .with_interval(std::time::Duration::from_millis(15_000)) // millis
         .build();
     Arc::new(
         MeterProvider::builder()
-            // .with_reader(reader)
+            .with_reader(reader)
             .build(),
     )
-}
-
-async fn get_statuses_for_jobs(nomad_url: String) -> Result<Vec<(String, JobScaleStatus)>> {
-    let client = Client::new();
-    let resp = client
-        .get(format!("{}v1/jobs", nomad_url))
-        .send()
-        .await?
-        .json::<Vec<JobListEntry>>()
-        .await?;
-    let mut statuses = Vec::new();
-    for entry in resp.iter() {
-        let job_name = &entry.name;
-        trace!("Looking up status for {}..", job_name);
-        let status = client
-            .get(format!("{}v1/job/{}/scale", nomad_url, job_name))
-            .send()
-            .await?
-            .json::<JobScale>()
-            .await?;
-        for (name, job_status) in status.task_groups.iter() {
-            // TODO: This should likely yield, but I'm not entirely sure how to accomplish that w/ Result.
-            statuses.push((name.to_owned(), job_status.to_owned()));
-        }
-    }
-    Ok(statuses)
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JobListEntry {
-    #[serde(rename = "Name")]
-    name: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct JobScale {
-    #[serde(rename = "TaskGroups")]
-    task_groups: HashMap<String, JobScaleStatus>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct JobScaleStatus {
-    #[serde(rename = "Desired")]
-    desired: u32,
-    #[serde(rename = "Healthy")]
-    healthy: u32,
-    #[serde(rename = "Placed")]
-    placed: u32,
-    #[serde(rename = "Running")]
-    running: u32,
-    #[serde(rename = "Unhealthy")]
-    unhealthy: u32,
 }
 
 #[derive(Debug)]
