@@ -1,0 +1,23 @@
+[package]
+name = "nomad-otel-metrics-scraper"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.79"
+clap = "4.4.18"
+env_logger = "0.11.0"
+futures = "0.3.30"
+humantime = "2.1.0"
+log = "0.4.20"
+opentelemetry = "0.21.0"
+opentelemetry-stdout = { version = "0.2.0", features = ["metrics"] }
+opentelemetry_sdk = "0.21.2"
+reqwest = "0.11.23"
+serde = "1.0.195"
+serde_json = "1.0.111"
+tokio = { version = "1.35.1", features = ["full"] }
+tokio-util = "0.7.10"
+url = "2.5.0"
