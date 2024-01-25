@@ -21,12 +21,15 @@ use opentelemetry_sdk::metrics::reader::{
 #[derive(Parser)]
 #[command(version, about, name = "nomad-otel-metrics-scraper")]
 pub struct Cli {
-    #[clap(short, long, default_value = "http://localhost:4646")]
+    /// URL of the nomad instance to contact
+    #[clap(short = 'u', long, default_value = "http://localhost:4646")]
     pub nomad_url: Url,
 
+    /// How often to query nomad
     #[clap(short, long, default_value = "60s")]
-    pub poll_interval: Duration,
+    pub nomad_poll_interval: Duration,
 
+    /// Whether to print out the metrics we are publishing to stdout
     #[clap(long)]
     pub debug: bool,
 }
@@ -35,7 +38,7 @@ pub struct Cli {
 async fn main() -> Result<()> {
     env_logger::init();
     let args = Cli::parse();
-    info!("Polling {} every {}", args.nomad_url, args.poll_interval);
+    info!("Polling {} every {}", args.nomad_url, args.nomad_poll_interval);
 
     let meter_provider = setup_otel(args.debug)?;
     let closable_meter_provider = meter_provider.clone();
@@ -63,7 +66,7 @@ async fn main() -> Result<()> {
                 _ = status_checker_token.cancelled() => {
                     return
                 }
-                _ = tokio::time::sleep(args.poll_interval.into()) => {
+                _ = tokio::time::sleep(args.nomad_poll_interval.into()) => {
                 // TODO: Set timeouts
                 let statuses = get_statuses_for_jobs(nomad_url.clone())
                     .await
