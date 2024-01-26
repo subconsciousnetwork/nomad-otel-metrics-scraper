@@ -76,14 +76,8 @@ async fn main() -> Result<()> {
                     // in it's own scope so we don't keep the lock for too long.
                     let mut data = looper_job_metric_map.lock().unwrap();
                     for (job_name, status) in statuses.iter() {
-                        let status_count = StatusCount {
-                            up: status.healthy.into(),
-                            down: status.unhealthy.into(),
-                            up_ratio: (status.healthy / status.desired).into(),
-                        };
-
-                        debug!("Job {} had status {:?}", job_name, status_count);
-                        data.insert(job_name.clone(), status_count);
+                        debug!("Job {} had status {:?}", job_name, status);
+                        data.insert(job_name.clone(), status.into());
                     }
                 }
 
@@ -234,4 +228,14 @@ struct StatusCount {
     up: u64,
     down: u64,
     up_ratio: f64,
+}
+
+impl From<&JobScaleStatus> for StatusCount {
+    fn from(value: &JobScaleStatus) -> Self {
+        Self {
+            up: value.healthy.into(),
+            down: value.unhealthy.into(),
+            up_ratio: (value.healthy / value.desired).into(),
+        }
+    }
 }
