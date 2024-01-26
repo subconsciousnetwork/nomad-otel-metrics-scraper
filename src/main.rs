@@ -186,6 +186,7 @@ impl NomadClient {
     }
 
     pub async fn get_statuses_for_jobs(&self) -> Result<Vec<(String, JobScaleStatus)>> {
+        // TODO: 5xx behavior?
         let entries = self.client
             .get(format!("{}v1/jobs", self.url))
             .send()
@@ -193,7 +194,7 @@ impl NomadClient {
             .json::<Vec<JobListEntry>>()
             .await?;
         let mut statuses = Vec::new();
-        for entry in entries.iter() {
+        for entry in entries.into_iter() {
             let job_name = &entry.name;
             trace!("Looking up status for {}..", job_name);
             let job_scale = self.client
@@ -202,8 +203,8 @@ impl NomadClient {
                 .await?
                 .json::<JobScale>()
                 .await?;
-            for (name, job_status) in job_scale.task_groups.iter() {
-                statuses.push((name.to_owned(), job_status.to_owned()));
+            for (name, job_status) in job_scale.task_groups.into_iter() {
+                statuses.push((name, job_status));
             }
         }
         Ok(statuses)
