@@ -104,5 +104,5 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ matrix.platforms }}
           push: true
-          tags: subconsciousnetworks/nomad-otel-metrics-scraper:latest,subconsciousnetworks/nomad-otel-metrics-scraper:v${{ needs.get-tag.outputs.pkg-version }}
+          tags: ghcr.io/subconsciousnetworks/nomad-otel-metrics-scraper:latest,ghcr.io/subconsciousnetworks/nomad-otel-metrics-scraper:v${{ needs.get-tag.outputs.pkg-version }}
           labels: ${{ steps.meta.outputs.labels }}

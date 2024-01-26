@@ -670,7 +670,7 @@ dependencies = [
 
 [[package]]
 name = "nomad-otel-metrics-scraper"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "clap",
