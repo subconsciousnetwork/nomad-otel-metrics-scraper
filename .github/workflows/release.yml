@@ -98,7 +98,7 @@ jobs:
           images: "subconsciousnetworks/nomad-otel-metrics-scraper"
 
       - name: "Build and push Docker image"
-        uses: "docker/build-push-action@v3"
+        uses: "docker/build-push-action@v5"
         with:
           context: .
           file: ./Dockerfile
