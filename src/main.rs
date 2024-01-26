@@ -179,23 +179,23 @@ fn setup_otel(debug: bool) -> Result<Arc<MeterProvider>> {
 
 async fn get_statuses_for_jobs(nomad_url: String) -> Result<Vec<(String, JobScaleStatus)>> {
     let client = Client::new();
-    let resp = client
+    let entries = client
         .get(format!("{}v1/jobs", nomad_url))
         .send()
         .await?
         .json::<Vec<JobListEntry>>()
         .await?;
     let mut statuses = Vec::new();
-    for entry in resp.iter() {
+    for entry in entries.iter() {
         let job_name = &entry.name;
         trace!("Looking up status for {}..", job_name);
-        let status = client
+        let job_scale = client
             .get(format!("{}v1/job/{}/scale", nomad_url, job_name))
             .send()
             .await?
             .json::<JobScale>()
             .await?;
-        for (name, job_status) in status.task_groups.iter() {
+        for (name, job_status) in job_scale.task_groups.iter() {
             // TODO: This should likely yield, but I'm not entirely sure how to accomplish that w/ Result.
             statuses.push((name.to_owned(), job_status.to_owned()));
         }
