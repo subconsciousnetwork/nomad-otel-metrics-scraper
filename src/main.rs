@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
     let service_up = meter.u64_observable_gauge("nomad_job_up").init();
     let service_down = meter.u64_observable_gauge("nomad_job_down").init();
 
-    let nomad_url = args.nomad_url.to_string();
+    let nomad_url = args.nomad_url;
 
     let job_metric_map = Arc::new(Mutex::new(HashMap::<String, StatusCount>::new()));
     let looper_job_metric_map = job_metric_map.clone();
@@ -61,6 +61,7 @@ async fn main() -> Result<()> {
     let status_checker_token = cancel_token.clone();
 
     let status_loop = tokio::spawn(async move {
+        let client = NomadClient::new(nomad_url);
         loop {
             tokio::select! {
                 _ = status_checker_token.cancelled() => {
@@ -68,7 +69,7 @@ async fn main() -> Result<()> {
                 }
                 _ = tokio::time::sleep(args.nomad_poll_interval.into()) => {
                 // TODO: Set timeouts
-                let statuses = get_statuses_for_jobs(nomad_url.clone())
+                let statuses = client.get_statuses_for_jobs()
                     .await
                     .expect("Unable to fetch statuses from the provided domain");
 
@@ -171,31 +172,44 @@ fn setup_otel(debug: bool) -> Result<Arc<MeterProvider>> {
     Ok(Arc::new(builder.build()))
 }
 
-async fn get_statuses_for_jobs(nomad_url: String) -> Result<Vec<(String, JobScaleStatus)>> {
-    let client = Client::new();
-    let entries = client
-        .get(format!("{}v1/jobs", nomad_url))
-        .send()
-        .await?
-        .json::<Vec<JobListEntry>>()
-        .await?;
-    let mut statuses = Vec::new();
-    for entry in entries.iter() {
-        let job_name = &entry.name;
-        trace!("Looking up status for {}..", job_name);
-        let job_scale = client
-            .get(format!("{}v1/job/{}/scale", nomad_url, job_name))
-            .send()
-            .await?
-            .json::<JobScale>()
-            .await?;
-        for (name, job_status) in job_scale.task_groups.iter() {
-            // TODO: This should likely yield, but I'm not entirely sure how to accomplish that w/ Result.
-            statuses.push((name.to_owned(), job_status.to_owned()));
+struct NomadClient {
+    url: Url,
+    client: reqwest::Client,
+}
+
+impl NomadClient {
+    pub fn new(url: Url) -> Self {
+        Self {
+            url,
+            client: Client::new(),
         }
     }
-    Ok(statuses)
+
+    pub async fn get_statuses_for_jobs(&self) -> Result<Vec<(String, JobScaleStatus)>> {
+        let entries = self.client
+            .get(format!("{}v1/jobs", self.url))
+            .send()
+            .await?
+            .json::<Vec<JobListEntry>>()
+            .await?;
+        let mut statuses = Vec::new();
+        for entry in entries.iter() {
+            let job_name = &entry.name;
+            trace!("Looking up status for {}..", job_name);
+            let job_scale = self.client
+                .get(format!("{}v1/job/{}/scale", self.url, job_name))
+                .send()
+                .await?
+                .json::<JobScale>()
+                .await?;
+            for (name, job_status) in job_scale.task_groups.iter() {
+                statuses.push((name.to_owned(), job_status.to_owned()));
+            }
+        }
+        Ok(statuses)
+    }
 }
+
 
 #[derive(Serialize, Deserialize, Debug)]
 struct JobListEntry {
