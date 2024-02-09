@@ -1,4 +1,4 @@
-from rust:1.72 as builder
+from rust:1.76 as builder
 
 workdir /tmp
 COPY Cargo.* ./
