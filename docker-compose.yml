@@ -30,7 +30,7 @@ services:
 
   # Prometheus
   prometheus:
-    image: quay.io/prometheus/prometheus:v2.48.1
+    image: quay.io/prometheus/prometheus:v2.50.1
     container_name: prometheus
     command:
       - --web.console.templates=/etc/prometheus/consoles
